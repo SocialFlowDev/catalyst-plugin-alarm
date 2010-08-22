@@ -14,10 +14,9 @@ use mro 'c3';
 
 # Sys::SigAction doesn't help on Win32 systems
 # because Win32 doesn't use POSIX signals
-our $WIN32 = 1;
-unless ( $^O eq 'MSWin32' ) {
-    require Sys::SigAction;
-    $WIN32 = 0;
+our $USE_NATIVE_SIGNALS = 0;
+if ( $^O eq 'MSWin32' ) {
+    $USE_NATIVE_SIGNALS = 1;
 }
 
 our $VERSION       = 0.05;
@@ -31,6 +30,23 @@ BEGIN {
     __PACKAGE__->mk_accessors(qw/ alarm /);
 }
 
+sub setup_finalize {
+    my $c   = shift;
+    my $ret = $c->next::method(@_);
+
+    my %conf = %{ $c->config->{alarm} };
+
+    if ( $conf{use_native_signals} ) {
+        $USE_NATIVE_SIGNALS = 1;
+    }
+    else {
+        require Sys::SigAction;    # defer till runtime
+    }
+
+    return $ret;
+}
+
+# must call on every request
 sub prepare {
     my $class = shift;
     my $c     = $class->next::method(@_);
@@ -104,7 +120,7 @@ sub prepare {
             &$handler( $c, 1 );
         };
 
-        if ($WIN32) {
+        if ($USE_NATIVE_SIGNALS) {
             $SIG{ALRM} = $alarm_handler;
         }
         else {
@@ -238,7 +254,7 @@ sub timeout {
 
     eval {
         my $h = $SIG{ALRM};
-        if ($WIN32) {
+        if ($USE_NATIVE_SIGNALS) {
             $SIG{ALRM} = $alarm_handler;
         }
         else {
@@ -287,7 +303,7 @@ sub timeout {
 
         CORE::alarm($prev_alarm);
 
-        if ($WIN32) {
+        if ($USE_NATIVE_SIGNALS) {
             $SIG{ALRM} = $h;
         }
     };
@@ -351,24 +367,21 @@ Catalyst::Plugin::Alarm - call an action with a timeout value
 
  package MyApp;
  use Catalyst qw( Alarm );
- MyApp->config->{alarm} = {
+ MyApp->config( alarm => {
     timeout => 60,
     global  => 120,
     handler => sub { # do something if alarm sounds }
-    };
+ });
  
- sub default : Private
- {
+ sub default : Private {
      my ($self,$c) = @_;
-     unless( $c->timeout('foo') )
-     {
+     unless( $c->timeout('foo') ) {
         $c->stash->{error} = "Sorry to keep you waiting. There was a problem.";
         return;
      }
  }
  
- sub foo : Private
- {
+ sub foo : Private {
     my ($self,$c) = @_;
     sleep 61;  
  }
@@ -442,14 +455,12 @@ Example:
 
   __PACKAGE__->config( alarm => {
     handler => sub {
-        if (ref $_[1])
-        {
+        if (ref $_[1]) {
             $_[0]->log->error(" .... local alarm went off!!");
             $_[1]->[0] = 'some return value';
             $_[0]->alarm->on(0);    # turn 'off' the alarm flag
         }
-        else
-        {
+        else {
             $_[0]->log->error(" .... global alarm went off");
             $_[0]->alarm->on(1);
         }
@@ -465,12 +476,12 @@ expression match against $c->request->path().
 
 Example:
 
-  __PACKAGE__->config( alarm => {
-         override => {
-            re=> qr{/ajax/}, 
-            timeout=> 3
-           }
-         });
+ __PACKAGE__->config( alarm => {
+    override => {
+        re=> qr{/ajax/}, 
+        timeout=> 3
+    }
+ });
  
 Will set the global timeout value to 3 if the request->path matches C</ajax>.
 The global timeout value will persist only for the life of that request.
@@ -485,7 +496,7 @@ Example:
  __PACKAGE__->config( alarm => { 
     forward => 1, 
     timeout => 10 
-   });
+ });
  
 Will automatically call timeout() with a default value of 10 seconds, wherever your
 code calls forward().
@@ -493,6 +504,11 @@ code calls forward().
 B<NOTE:> You must assign a default C<timeout> value to use the C<forward>
 feature.
 
+=item use_native_signals
+
+Default value is false. If set to a true value, Sys::SigAction will not be used
+and instead the built-in %SIG handlers will be used. This is necessary for the plugin
+to work under Win32 systems and in some cases with FCGI.
 
 =back
 
@@ -535,6 +551,10 @@ Examples:
     });
 
 
+=head2 setup_finalize
+
+Overridden internally.
+
 =head2 prepare
 
 Overridden internally.
@@ -564,13 +584,13 @@ snooze() turns off the alarm completely for the entire request cycle.
 Example:
 
  __PACKAGE__->config( alarm => {
-                             override => {
-                                re      => qr{/foo/},
-                                timeout => 3 
-                                }
-                            } );
- sub foo : Global
- {
+    override => {
+        re      => qr{/foo/},
+        timeout => 3 
+    }
+ });
+ 
+ sub foo : Global {
    my ($self,$c) = @_;
    $c->alarm->off;      # negates the override in config
    $c->alarm->snooze;   # same thing as off()
@@ -654,10 +674,12 @@ The Time::HiRes alarm() function ought to be used internally instead of the CORE
 function, but it behaved unpredictably in the test cases. See the comments in the source
 for more details.
 
-Win32 systems don't have alarm() or other signal handlers. That's not really the fault
-of this module, but listed here in case you try using this on a Win32 system and it balks.
-You might try setting the PERL_SIGNALS environment variable to C<unsafe> but that wouldn't
-be very safe, now would it?
+Win32 systems don't have alarm() or other signal handlers, so B<use_native_signals>
+gets turned on if running under Win32.
+
+Some users report that Sys::SigAction does not play nicely with FCGI,
+so you can set the B<use_native_signals> to a true value to use the built-in
+%SIG handlers instead of Sys::SigAction.
 
 =head1 AUTHOR
 

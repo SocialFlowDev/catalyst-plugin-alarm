@@ -19,7 +19,8 @@ __PACKAGE__->config(
                 #$_[0]->alarm->on(0);   # leave it on to test
             }
         },
-        global => 5
+        global             => 5,
+        use_native_signals => $ENV{USE_NATIVE_SIGNALS},
     },
 );
 
