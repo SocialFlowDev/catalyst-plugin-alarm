@@ -1,13 +1,12 @@
 Changes
+lib/Catalyst/Plugin/Alarm.pm
 Makefile.PL
-MANIFEST
+MANIFEST			This list of files
 README
 t/00-load.t
 t/01-alarm.t
 t/02-native-signals.t
-t/TestApp/Controller/Root.pm
-t/TestApp.pm
 t/pod-coverage.t
 t/pod.t
-Alarm.pm
-META.yml                                 Module meta-data (added by MakeMaker)
+t/TestApp.pm
+t/TestApp/Controller/Root.pm

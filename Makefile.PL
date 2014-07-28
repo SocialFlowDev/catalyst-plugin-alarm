@@ -4,9 +4,9 @@ use ExtUtils::MakeMaker;
 
 WriteMakefile(
     NAME         => 'Catalyst::Plugin::Alarm',
-    VERSION_FROM => 'Alarm.pm',
+    VERSION_FROM => 'lib/Catalyst/Plugin/Alarm.pm',
     PREREQ_PM    => {
-        'Sys::SigAction'        => 0.11,
+        'Sys::SigAction'        => '0.21',
         'Time::HiRes'           => 1.0,
         'Class::Accessor::Fast' => 0,
         'Catalyst::Runtime'     => 5.8,

@@ -1,5 +1,5 @@
 use Test::More tests => 1;
-BEGIN { use_ok('Alarm') }
+BEGIN { use_ok('Catalyst::Plugin::Alarm') }
 
 diag("Testing Catalyst::Plugin::Alarm $Catalyst::Plugin::Alarm::VERSION");
 
